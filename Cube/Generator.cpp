@@ -20,7 +20,7 @@ void Generator::generate() {
 	cout << endl;
 	cube->print();
 //	cout << endl << (time(0)-startTime)/(float)1000 << " s" << endl;
-	cout << endl << (clock() - clo) << endl;
+	cout << endl << (clock() - clo)/(float)1000 << " s" << endl;
 }
 
 void Generator::gen() {
@@ -86,54 +86,83 @@ void Generator::setColorList(vector<int> &colorList) {
 }
 
 bool Generator::isValid() {
-	if (planeChecks()) {
-		if (PRINT_CHECK) cout << "flat/too many on plane" << endl;
+	if (!RUN_CHECKS) return true;
+	if ((CHECK_TOO_MANY_ON_PLANE||CHECK_FLAT)&&planeChecks()) {
+//		if (PRINT_CHECK) cout << "flat/too many on plane" << endl;
 		return false;
 	}
-//	if (hasIdentical()) {
+//	if (CHECK_IDENTICAL&&hasIdentical()) {
 //		if (PRINT_CHECK) cout << "identical" << endl;
 //		return false;
 //	}
-//	if (hasCollision()) {
-//		if (PRINT_CHECK) cout << "collision" << endl;
-//		return false;
-//	}
-	if (has2DClusters()) {
+	if ((CHECK_DIAGONAL_COLLISION||CHECK_SURROUND_COLLISION)&&hasCollision()) {
+		if (PRINT_CHECK) cout << "collision" << endl;
+		return false;
+	}
+	if (CHECK_2D&&has2DClusters()) {
 		if (PRINT_CHECK) cout << "2d" << endl;
 		return false;
 	}
-//	if (has3DClusters()) {
-//		if (PRINT_CHECK) cout << "3d" << endl;
-//		return false;
-//	}
+	if (CHECK_3D&&has3DClusters()) {
+		if (PRINT_CHECK) cout << "3d" << endl;
+		return false;
+	}
 	return true;
 }
 
-//bool Generator::hasFlat() {
-//	vector<vector<vector<int> > > planeCounts = getPlaneCounts();
-//	int flatCount = 0;
-//	for (unsigned int p = 0;p<planeCounts.size();p++) {
-//		for (unsigned int j = 0;j<planeCounts[p].size();j++) {
-//			int count = 0;
-//			for (unsigned int k = 0;k<planeCounts[p][j].size();k++) {
-//				if (planeCounts[p][j][k]!=0) {
-//					count++;
-//				}
-//			}
-//			if (count==1) {
-//				flatCount++;
-//			}
-//		}
-//	}
-//	return flatCount!=0;
-//}
-
 bool Generator::hasCollision() {
-	return false;//TODO
+	for (int z = 0;z<cube->d();z++) {
+		for (int y = 0;y<cube->h();y++) {
+			for (int x = 0;x<cube->w();x++) {
+				if (CHECK_DIAGONAL_COLLISION) for (int a = 0;a<3;a++) {
+					int zOLimit = (a==0)?1:2, yOLimit = (a==1)?1:2, xOLimit = (a==2)?1:2;
+					vector<int> colors = vector<int>(4);
+					int i = 0;
+					for (int zO = 0;zO<zOLimit;zO++) {
+						for (int yO = 0;yO<yOLimit;yO++) {
+							for (int xO = 0;xO<xOLimit;xO++) {
+								if (!cube->inBounds(x+xO, y+yO, z+zO)) continue;
+								colors[i] = cube->get(x+xO, y+yO, z+zO);
+								i++;
+							}
+						}
+					}
+					if (i<4) continue;
+					int tl = colors[0], tr = colors[1], bl = colors[2], br = colors[3];
+					if ((!(tl==bl||tr==br||tl==tr||tr==br||!(tl==br||tr==bl)))||(tl==br&&tr==bl&&tl!=tr)) {
+						return true;
+					}
+				}
+				if (CHECK_SURROUND_COLLISION) for (int a = 0;a<3;a++) {
+					int zOLimit = (a==0)?3:1, yOLimit = (a==1)?3:1, xOLimit = (a==2)?3:1;
+					vector<int> colors = vector<int>(3);
+					int i = 0;
+					for (int zO = 0;zO<zOLimit;zO++) {
+						for (int yO = 0;yO<yOLimit;yO++) {
+							for (int xO = 0;xO<xOLimit;xO++) {
+								if (!cube->inBounds(x+xO, y+yO, z+zO)) continue;
+								colors[i] = cube->get(x+xO, y+yO, z+zO);
+								i++;
+							}
+						}
+					}
+					if (i<3) continue;
+					int f = colors[0], m = colors[1], l = colors[2];
+					if (f==l&&f!=m) {
+						cout << colors[0] << colors[1] << colors[2] << endl << endl;
+						cube->print();
+						cout << endl;
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
 }
 
 bool Generator::hasIdentical() {
-	return false;//TODO
+	return false;
 }
 
 bool Generator::has2DClusters() {
@@ -153,7 +182,7 @@ bool Generator::has2DClusters() {
 						}
 					}
 					for (unsigned int i = 0;i<counts.size();i++) {
-						if (counts[i]>=4) count++;
+						if (counts[i]==4) count++;
 						if (count>MAX_2D_CLUSTERS) return true;
 					}
 				}
@@ -164,23 +193,29 @@ bool Generator::has2DClusters() {
 }
 
 bool Generator::has3DClusters() {
+	for (int z = 0;z<cube->d()-1;z++) {
+		for (int y = 0;y<cube->h()-1;y++) {
+			for (int x = 0;x<cube->w()-1;x++) {
+				for (int a = 0;a<3;a++) {
+					vector<int> counts = vector<int>(PIECE_COUNT);
+					for (int zO = 0;zO<2;zO++) {
+						for (int yO = 0;yO<2;yO++) {
+							for (int xO = 0;xO<2;xO++) {
+								counts[cube->get(x+xO, y+yO, z+zO)-1]++;
+							}
+						}
+					}
+					for (unsigned int i = 0;i<counts.size();i++) {
+						if (counts[i]>MAX_3D_CUBIES) return true;
+					}
+				}
+			}
+		}
+	}
 	return false;
 }
 
-//bool Generator::tooManyOnPlane() {
-//	bool tooManyOnPlane = false;
-//	vector<vector<vector<int> > > planeCounts = getPlaneCounts();
-//	for (unsigned int p = 0;p<planeCounts.size();p++) {
-//		for (unsigned int j = 0;j<planeCounts[p].size();j++) {
-//			for (unsigned int k = 0;k<planeCounts[p][j].size();k++) {
-//				if (planeCounts[p][j][k]>=BORING_PLANE_COUNT) tooManyOnPlane = true;
-//			}
-//		}
-//	}
-//	return tooManyOnPlane;
-//}
-
-/*vector<vector<vector<int> > >*/bool Generator::planeChecks() {
+bool Generator::planeChecks() {
 	vector<vector<vector<int> > > planeCounts = vector<vector<vector<int> > >(PIECE_COUNT, vector<vector<int> >(3));
 	for (int p = 0;p<PIECE_COUNT;p++) {
 		for (int j = 0;j<3;j++) planeCounts[p][j] = vector<int>((j==Z)?cube->d():(j==Y)?cube->h():cube->w());
@@ -200,7 +235,7 @@ bool Generator::has3DClusters() {
 		for (unsigned int j = 0;j<planeCounts[p].size();j++) {
 			int count = 0;
 			for (unsigned int k = 0;k<planeCounts[p][j].size();k++) {
-				if (planeCounts[p][j][k]>=BORING_PLANE_COUNT) return true;
+				if (CHECK_TOO_MANY_ON_PLANE&&planeCounts[p][j][k]>=PLANE_COUNT) return true;
 				if (planeCounts[p][j][k]!=0) {
 					count++;
 				}
@@ -208,10 +243,9 @@ bool Generator::has3DClusters() {
 			if (count==1) {
 				flatCount++;
 			}
-//			cout << p+1 << ", " << j << ", " << k << "\t" << planeCounts[p][j][k] << endl;
 		}
 	}
-	return flatCount!=0;
+	return CHECK_FLAT&&flatCount!=0;
 }
 
 
